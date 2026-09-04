@@ -51,7 +51,7 @@ func ptrGroup(s string) *gatewayv1.Group                           { g := gatewa
 func ptrKind(s string) *gatewayv1.Kind                             { k := gatewayv1.Kind(s); return &k }
 func ptrNamespace(s string) *gatewayv1.Namespace                   { n := gatewayv1.Namespace(s); return &n }
 func ptrSectionName(s string) *gatewayv1.SectionName               { s2 := gatewayv1.SectionName(s); return &s2 }
-func ptrPort(p int32) *gatewayv1.PortNumber                        { n := gatewayv1.PortNumber(p); return &n }
+func ptrPort(p int32) *gatewayv1.PortNumber                        { return &p }
 func ptrFrom(f gatewayv1.FromNamespaces) *gatewayv1.FromNamespaces { return &f }
 
 func ptrObjName(s string) *gatewayv1.ObjectName {

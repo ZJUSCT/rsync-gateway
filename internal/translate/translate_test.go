@@ -67,9 +67,9 @@ func TestProxySettings(t *testing.T) {
 
 	t.Run("invalid values rejected", func(t *testing.T) {
 		_, err := ProxySettings(&v1alpha1.GatewayConfigSpec{RelayIdleTimeout: duration("soon")})
-		assert.Error(t, err)
+		require.Error(t, err)
 		_, err = ProxySettings(&v1alpha1.GatewayConfigSpec{MaxActiveConnections: int32Ptr(-1)})
-		assert.Error(t, err)
+		require.Error(t, err)
 	})
 }
 

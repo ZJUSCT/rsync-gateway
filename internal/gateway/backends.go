@@ -101,7 +101,7 @@ func referenceGrantPermits(snap *Snapshot, fromNamespace, backendNamespace, serv
 			// (GEP-724): RsyncRoute lives in our own API group, not in
 			// gateway.networking.k8s.io.
 			if from.Group != gatewayv1.Group(v1alpha1.GroupVersion.Group) ||
-				from.Kind != gatewayv1.Kind(v1alpha1.RouteKind) ||
+				from.Kind != v1alpha1.RouteKind ||
 				string(from.Namespace) != fromNamespace {
 				continue
 			}

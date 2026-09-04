@@ -77,7 +77,7 @@ func run() error {
 	if err := clientgoscheme.AddToScheme(scheme); err != nil {
 		return err
 	}
-	if err := gatewayv1.AddToScheme(scheme); err != nil {
+	if err := gatewayv1.Install(scheme); err != nil {
 		return err
 	}
 	if err := v1alpha1.AddToScheme(scheme); err != nil {
@@ -104,7 +104,9 @@ func run() error {
 		Scheme:    mgr.GetScheme(),
 		Applier:   dp,
 		BindAddrs: dp.Addrs(),
-		Recorder:  mgr.GetEventRecorderFor("rsync-gateway"),
+		// TODO: migrate to mgr.GetEventRecorder (events.k8s.io API); the
+		// legacy recorder keeps the client-go Eventf signatures we use.
+		Recorder: mgr.GetEventRecorderFor("rsync-gateway"), //nolint:staticcheck // deprecated; controller-runtime nolints this call internally
 	}
 	if err := reconciler.SetupWithManager(mgr); err != nil {
 		return fmt.Errorf("setup controller: %w", err)

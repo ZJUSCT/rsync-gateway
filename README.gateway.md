@@ -303,3 +303,18 @@ layers above are rsync-gateway-specific and not intended for upstream.
 ## License
 
 MIT, same as upstream. See [LICENSE](LICENSE).
+
+## Development
+
+The upstream CI workflow runs [golangci-lint](https://golangci-lint.run)
+over the whole repository using the shared `.golangci.yml`. Run the checks
+locally before pushing — CI fails otherwise:
+
+```bash
+make lint          # golangci-lint run
+make gateway-test  # gateway unit and integration tests
+```
+
+CI pins golangci-lint v2.13.2; install it with
+`go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2`
+or download the release binary.

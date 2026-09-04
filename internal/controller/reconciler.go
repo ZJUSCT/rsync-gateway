@@ -81,18 +81,18 @@ func (r *GatewayReconciler) Reconcile(ctx context.Context, _ ctrl.Request) (ctrl
 	claims := gateway.ClaimClasses(snap)
 	results := gateway.BindRoutes(snap, claims)
 
-	table, inputs, err := r.buildTable(snap, claims, results)
+	table, _, err := r.buildTable(snap, claims, results)
 	if err != nil {
 		// The computed table is invalid (e.g. a GatewayConfig spec that
 		// only fails at translation time). Reflect it and requeue with
 		// backoff.
 		logger.Error(err, "building data-plane table failed")
-		return ctrl.Result{}, r.writeStatuses(ctx, snap, claims, results, nil, err)
+		return ctrl.Result{}, r.writeStatuses(ctx, snap, claims, results, err)
 	}
 
 	applyErr := r.Applier.Apply(table)
 
-	statusErr := r.writeStatuses(ctx, snap, claims, results, inputs, applyErr)
+	statusErr := r.writeStatuses(ctx, snap, claims, results, applyErr)
 	if applyErr != nil {
 		logger.Error(applyErr, "applying data-plane table failed")
 		// Requeue with exponential backoff.
@@ -241,7 +241,6 @@ func (r *GatewayReconciler) writeStatuses(
 	snap *gateway.Snapshot,
 	claims map[string]gateway.ClassClaim,
 	results map[types.NamespacedName][]gateway.ParentResult,
-	inputs []translate.RouteInput,
 	applyErr error,
 ) error {
 	servedPorts := gateway.ServedPorts(r.BindAddrs)

@@ -39,7 +39,7 @@ func testScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
 	scheme := runtime.NewScheme()
 	require.NoError(t, clientgoscheme.AddToScheme(scheme))
-	require.NoError(t, gatewayv1.AddToScheme(scheme))
+	require.NoError(t, gatewayv1.Install(scheme))
 	require.NoError(t, v1alpha1.AddToScheme(scheme))
 	return scheme
 }
@@ -114,8 +114,7 @@ func service(ns, name string) *corev1.Service {
 func nsPtr(s string) *gatewayv1.Namespace { n := gatewayv1.Namespace(s); return &n }
 
 func portPtr(p int32) *gatewayv1.PortNumber {
-	n := gatewayv1.PortNumber(p)
-	return &n
+	return &p
 }
 
 func int32Ptr(v int32) *int32 { return &v }

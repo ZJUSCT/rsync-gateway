@@ -89,7 +89,7 @@ func resolveClassConfig(gc *gatewayv1.GatewayClass, snap *Snapshot) (*v1alpha1.G
 		return invalid(fmt.Sprintf("unsupported parametersRef group/kind %s/%s; want %s/GatewayConfig", ref.Group, ref.Kind, v1alpha1.GroupVersion.Group))
 	}
 	if ref.Namespace != nil && *ref.Namespace != "" {
-		return invalid(fmt.Sprintf("parametersRef.namespace must be empty; GatewayConfig is cluster-scoped"))
+		return invalid("parametersRef.namespace must be empty; GatewayConfig is cluster-scoped")
 	}
 	config, ok := snap.GatewayConfigs[ref.Name]
 	if !ok {

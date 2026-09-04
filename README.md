@@ -21,14 +21,16 @@
 
 - Gateway listener 自定义协议：`rsync.zjusct.io/rsync`
 - `rsync-gateway`：controller-runtime 控制器，内嵌 rsync-proxy，watch 上述资源后对路由表做热更新；
-- 发布地址（自首个 tag 起由 CI 自动发布）：
+- 发布地址：
     - `ghcr.io/zjusct/rsync-gateway`：控制器镜像
-    - `ghcr.io/zjusct/rsync-proxy`：rsync-proxy 镜像（上游 rsync 反向代理的容器化打包）
+    - `ghcr.io/zjusct/rsync-proxy`：rsync-proxy 镜像（上游未打包镜像）
     - `ghcr.io/zjusct/charts/rsync-gateway`：Helm Chart
 
 本项目的维护和版本策略：直接使用上游版本号（tag）。当上游发布新版本（tag）时，rebase 到该 tag。
 
-网关文档、架构和快速入门请参见 [README.gateway.md](README.gateway.md)。下文保留上游 rsync-proxy 的 README（含少量针对本 fork 的行为增补）以便 rebase。
+本项目目前完全由 AI 实现和测试（测试包括 K8s 集群上的端到端测试），暂无人工 Review。
+
+网关文档、架构和快速入门请参见 [README.gateway.md](README.gateway.md)。下文保留上游 rsync-proxy 的 README 以便 rebase。
 
 ---
 

@@ -37,6 +37,10 @@ clean:
 GATEWAY_IMG ?= ghcr.io/zjusct/rsync-gateway
 CONTROLLER_TOOLS_VERSION ?= v0.22.0
 
+.PHONY: lint
+lint:
+	golangci-lint run
+
 .PHONY: gateway
 gateway:
 	go build -o bin/rsync-gateway ./cmd/rsync-gateway
