@@ -282,8 +282,12 @@ func (s *Server) loadConfig(c *Config, openLog bool) error {
 	var tlsCertificate *tls.Certificate
 	serverStarted := s.TCPListener != nil || s.HTTPListener != nil || s.TLSListener != nil
 
+	// An empty upstream table is allowed: the module table ends up
+	// empty, so every module request is answered with the
+	// "@ERROR: Unknown module" reply and a list-all-modules request
+	// returns an empty list.
 	if len(c.Upstreams) == 0 {
-		return fmt.Errorf("no upstream found")
+		log.Print("[INFO] no upstreams configured; all modules will be refused")
 	}
 	if serverStarted {
 		switch {

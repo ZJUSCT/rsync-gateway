@@ -99,7 +99,7 @@ cp fail2ban/filter.d/* /etc/fail2ban/filter.d/
 
 ## `[upstreams.<NAME>]`
 
-每个上游一项，名字（`NAME`）任意，仅用于日志与 metric 标签。
+每个上游一项，名字（`NAME`）任意，仅用于日志与 metric 标签。允许完全不配置上游（配置文件没有任何 `[upstreams.*]` 段）：此时 module 表为空，所有 module 请求都会被拒绝（`@ERROR: Unknown module`），list-all 请求返回空列表。
 
 | 字段 | 类型 | 默认 | 说明 |
 | --- | --- | --- | --- |

@@ -167,6 +167,42 @@ func TestUnknownModuleSendsErrorPrefix(t *testing.T) {
 	r.NotContains(string(allData), "@RSYNCD: EXIT", "should not send EXIT after @ERROR; rsync client must treat the response as fatal")
 }
 
+// TestLoadConfigWithEmptyUpstreams verifies that a config without any
+// [upstreams.*] section is accepted. The module table is empty: every
+// module lookup misses, and a list-all-modules request is answered with
+// just the EXIT sentinel.
+func TestLoadConfigWithEmptyUpstreams(t *testing.T) {
+	srv := startServer(t)
+	defer srv.Close()
+
+	configContent := `
+[proxy]
+listen = "127.0.0.1:0"
+listen_http = "127.0.0.1:0"
+`
+	require.NoError(t, srv.ReadConfig(strings.NewReader(configContent), false))
+
+	// Every module lookup must miss.
+	_, ok := srv.getTargetsForModule("whatever")
+	require.False(t, ok)
+
+	r := require.New(t)
+
+	rawConn, err := net.Dial("tcp", srv.TCPListener.Addr().String())
+	r.NoError(err)
+	conn := rsync.NewConn(rawConn)
+	defer conn.Close()
+
+	// An empty module name requests the list of all modules, which is
+	// none: only the EXIT sentinel is written back.
+	_, err = doClientHandshake(conn, RsyncdServerVersion, "")
+	r.NoError(err)
+
+	allData, err := io.ReadAll(conn)
+	r.NoError(err)
+	r.Equal(string(RsyncdExit), string(allData))
+}
+
 // See also: https://github.com/ustclug/rsync-proxy/commit/d581c18dab8008c5bc9c1a5d667b49d67a4edfed
 func TestClientReadTimeout(t *testing.T) {
 	srv := startServer(t)
