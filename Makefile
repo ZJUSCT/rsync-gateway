@@ -31,3 +31,37 @@ releases: $(gz_releases)
 
 clean:
 	rm -rf $(OUTDIR)/
+
+# --- rsync-gateway (K8s controller + embedded data plane) ---
+
+GATEWAY_IMG ?= ghcr.io/zjusct/rsync-gateway
+CONTROLLER_TOOLS_VERSION ?= v0.22.0
+
+.PHONY: gateway
+gateway:
+	go build -o bin/rsync-gateway ./cmd/rsync-gateway
+
+.PHONY: gateway-test
+gateway-test:
+	go test ./api/... ./internal/... ./cmd/...
+
+# Regenerates the CRDs into the Helm chart. The directory must be named
+# exactly "crds/" (a hard Helm convention: files there are installed by
+# `helm install` but not templated). RBAC is NOT generated here anymore:
+# charts/rsync-gateway/templates/clusterrole.yaml is hand-maintained and
+# must be kept in sync with the //+kubebuilder:rbac markers in the Go code.
+.PHONY: gateway-manifests
+gateway-manifests:
+	go run sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION) \
+		crd paths=./api/... \
+		output:crd:artifacts:config=charts/rsync-gateway/crds
+
+# Lints the Helm chart (strict mode) and checks that it renders.
+.PHONY: gateway-chart-lint
+gateway-chart-lint:
+	helm lint --strict charts/rsync-gateway
+	helm template charts/rsync-gateway >/dev/null
+
+.PHONY: gateway-docker
+gateway-docker:
+	docker build -f Dockerfile.gateway -t $(GATEWAY_IMG) .

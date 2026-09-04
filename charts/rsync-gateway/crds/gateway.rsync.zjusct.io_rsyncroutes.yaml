@@ -1,0 +1,662 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.22.0
+  name: rsyncroutes.gateway.rsync.zjusct.io
+spec:
+  group: gateway.rsync.zjusct.io
+  names:
+    kind: RsyncRoute
+    listKind: RsyncRouteList
+    plural: rsyncroutes
+    singular: rsyncroute
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.parents[?(@.controllerName=="gateway.rsync.zjusct.io/rsync-gateway")].conditions[?(@.type=="Accepted")].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: |-
+          RsyncRoute is the Schema for the rsyncroutes API. Binding a RsyncRoute to
+          a Gateway (via parentRefs) publishes the route's modules on the Gateway's
+          rsync listeners and relays module traffic to the route's backendRefs.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: Spec defines the desired state of the route.
+            properties:
+              backendRefs:
+                description: |-
+                  BackendRefs lists the backend Services that requests to any of the
+                  route's modules are relayed to. The port field is REQUIRED (rsync
+                  needs a deterministic port and the core BackendObjectReference type
+                  marks it optional, so rsync-gateway rejects references without a
+                  port at reconciliation time with ResolvedRefs=False/BackendNotFound).
+
+                  v0 only supports core Service references (group "" kind Service).
+                  The weight field may be set but is only honored for the
+                  zero/non-zero distinction: every backend with weight > 0 is part of
+                  the routing pool and receives the same treatment; backends with
+                  weight 0 are excluded.
+                items:
+                  description: |-
+                    BackendRef defines how a Route should forward a request to a Kubernetes
+                    resource.
+
+                    Note that when a namespace different than the local namespace is specified, a
+                    ReferenceGrant object is required in the referent namespace to allow that
+                    namespace's owner to accept the reference. See the ReferenceGrant
+                    documentation for details.
+
+                    <gateway:experimental:description>
+
+                    When the BackendRef points to a Kubernetes Service, implementations SHOULD
+                    honor the appProtocol field if it is set for the target Service Port.
+
+                    Implementations supporting appProtocol SHOULD recognize the Kubernetes
+                    Standard Application Protocols defined in KEP-3726.
+
+                    If a Service appProtocol isn't specified, an implementation MAY infer the
+                    backend protocol through its own means. Implementations MAY infer the
+                    protocol from the Route type referring to the backend Service.
+
+                    If a Route is not able to send traffic to the backend using the specified
+                    protocol then the backend is considered invalid. Implementations MUST set the
+                    "ResolvedRefs" condition to "False" with the "UnsupportedProtocol" reason.
+
+                    </gateway:experimental:description>
+
+                    Note that when the BackendTLSPolicy object is enabled by the implementation,
+                    there are some extra rules about validity to consider here. See the fields
+                    where this struct is used for more information about the exact behavior.
+                  properties:
+                    group:
+                      default: ""
+                      description: |-
+                        Group is the group of the referent. For example, "gateway.networking.k8s.io".
+                        When unspecified or empty string, core API group is inferred.
+                      maxLength: 253
+                      pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                      type: string
+                    kind:
+                      default: Service
+                      description: |-
+                        Kind is the Kubernetes resource kind of the referent. For example
+                        "Service".
+
+                        Defaults to "Service" when not specified.
+
+                        ExternalName services can refer to CNAME DNS records that may live
+                        outside of the cluster and as such are difficult to reason about in
+                        terms of conformance. They also may not be safe to forward to (see
+                        CVE-2021-25740 for more information). Implementations SHOULD NOT
+                        support ExternalName Services.
+
+                        Support: Core (Services with a type other than ExternalName)
+
+                        Support: Implementation-specific (Services with type ExternalName)
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
+                      type: string
+                    name:
+                      description: Name is the name of the referent.
+                      maxLength: 253
+                      minLength: 1
+                      type: string
+                    namespace:
+                      description: |-
+                        Namespace is the namespace of the backend. When unspecified, the local
+                        namespace is inferred.
+
+                        Note that when a namespace different than the local namespace is specified,
+                        a ReferenceGrant object is required in the referent namespace to allow that
+                        namespace's owner to accept the reference. See the ReferenceGrant
+                        documentation for details.
+
+                        Support: Core
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    port:
+                      description: |-
+                        Port specifies the destination port number to use for this resource.
+                        Port is required when the referent is a Kubernetes Service. In this
+                        case, the port number is the service port number, not the target port.
+                        For other resources, destination port might be derived from the referent
+                        resource or this field.
+                      format: int32
+                      maximum: 65535
+                      minimum: 1
+                      type: integer
+                    weight:
+                      default: 1
+                      description: |-
+                        Weight specifies the proportion of requests forwarded to the referenced
+                        backend. This is computed as weight/(sum of all weights in this
+                        BackendRefs list). For non-zero values, there may be some epsilon from
+                        the exact proportion defined here depending on the precision an
+                        implementation supports. Weight is not a percentage and the sum of
+                        weights does not need to equal 100.
+
+                        If only one backend is specified and it has a weight greater than 0, 100%
+                        of the traffic is forwarded to that backend. If weight is set to 0, no
+                        traffic should be forwarded for this entry. If unspecified, weight
+                        defaults to 1.
+
+                        Support for this field varies based on the context where used.
+                      format: int32
+                      maximum: 1000000
+                      minimum: 0
+                      type: integer
+                  required:
+                  - name
+                  type: object
+                  x-kubernetes-validations:
+                  - message: Must have port for Service reference
+                    rule: '(size(self.group) == 0 && self.kind == ''Service'') ? has(self.port)
+                      : true'
+                maxItems: 16
+                minItems: 1
+                type: array
+                x-kubernetes-list-type: atomic
+              moduleNames:
+                description: |-
+                  ModuleNames is the list of rsync module names served by this route.
+                  When empty, the effective list is the single module
+                  metadata.name.
+
+                  Each name must be non-empty printable ASCII without control
+                  characters, must not start with '#' and must be at most 255
+                  characters long. Module names are newline-terminated on the rsync
+                  wire protocol, which makes these restrictions a security requirement
+                  rather than a cosmetic one.
+                items:
+                  pattern: ^[\x21-\x22\x24-\x7E][\x20-\x7E]{0,254}$
+                  type: string
+                maxItems: 16
+                minItems: 1
+                type: array
+                x-kubernetes-list-type: atomic
+              parentRefs:
+                description: |-
+                  ParentRefs identifies the Gateway(s) this route wants to be attached
+                  to. Group and Kind default to "gateway.networking.k8s.io"/"Gateway"
+                  and Namespace defaults to the namespace of this route, matching the
+                  HTTPRoute semantics.
+                items:
+                  description: |-
+                    ParentReference identifies an API object (usually a Gateway) that can be considered
+                    a parent of this resource (usually a route). There are two kinds of parent resources
+                    with "Core" support:
+
+                    * Gateway (Gateway conformance profile)
+                    * Service (Mesh conformance profile, ClusterIP Services only)
+
+                    This API may be extended in the future to support additional kinds of parent
+                    resources.
+
+                    The API object must be valid in the cluster; the Group and Kind must
+                    be registered in the cluster for this reference to be valid.
+                  properties:
+                    group:
+                      default: gateway.networking.k8s.io
+                      description: |-
+                        Group is the group of the referent.
+                        When unspecified, "gateway.networking.k8s.io" is inferred.
+                        To set the core API group (such as for a "Service" kind referent),
+                        Group must be explicitly set to "" (empty string).
+
+                        Support: Core
+                      maxLength: 253
+                      pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                      type: string
+                    kind:
+                      default: Gateway
+                      description: |-
+                        Kind is kind of the referent.
+
+                        There are two kinds of parent resources with "Core" support:
+
+                        * Gateway (Gateway conformance profile)
+                        * Service (Mesh conformance profile, ClusterIP Services only)
+
+                        Support for other resources is Implementation-Specific.
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
+                      type: string
+                    name:
+                      description: |-
+                        Name is the name of the referent.
+
+                        Support: Core
+                      maxLength: 253
+                      minLength: 1
+                      type: string
+                    namespace:
+                      description: |-
+                        Namespace is the namespace of the referent. When unspecified, this refers
+                        to the local namespace of the Route.
+
+                        Note that there are specific rules for ParentRefs which cross namespace
+                        boundaries. Cross-namespace references are only valid if they are explicitly
+                        allowed by something in the namespace they are referring to. For example:
+                        Gateway has the AllowedRoutes field, and ReferenceGrant provides a
+                        generic way to enable any other kind of cross-namespace reference.
+
+                        <gateway:experimental:description>
+                        ParentRefs from a Route to a Service in the same namespace are "producer"
+                        routes, which apply default routing rules to inbound connections from
+                        any namespace to the Service.
+
+                        ParentRefs from a Route to a Service in a different namespace are
+                        "consumer" routes, and these routing rules are only applied to outbound
+                        connections originating from the same namespace as the Route, for which
+                        the intended destination of the connections are a Service targeted as a
+                        ParentRef of the Route.
+                        </gateway:experimental:description>
+
+                        Support: Core
+                      maxLength: 63
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                      type: string
+                    port:
+                      description: |-
+                        Port is the network port this Route targets. It can be interpreted
+                        differently based on the type of parent resource.
+
+                        When the parent resource is a Gateway, this targets all listeners
+                        listening on the specified port that also support this kind of Route(and
+                        select this Route). It's not recommended to set `Port` unless the
+                        networking behaviors specified in a Route must apply to a specific port
+                        as opposed to a listener(s) whose port(s) may be changed. When both Port
+                        and SectionName are specified, the name and port of the selected listener
+                        must match both specified values.
+
+                        <gateway:experimental:description>
+                        When the parent resource is a Service, this targets a specific port in the
+                        Service spec. When both Port (experimental) and SectionName are specified,
+                        the name and port of the selected port must match both specified values.
+                        </gateway:experimental:description>
+
+                        Implementations MAY choose to support other parent resources.
+                        Implementations supporting other types of parent resources MUST clearly
+                        document how/if Port is interpreted.
+
+                        For the purpose of status, an attachment is considered successful as
+                        long as the parent resource accepts it partially. For example, Gateway
+                        listeners can restrict which Routes can attach to them by Route kind,
+                        namespace, or hostname. If 1 of 2 Gateway listeners accept attachment
+                        from the referencing Route, the Route MUST be considered successfully
+                        attached. If no Gateway listeners accept attachment from this Route,
+                        the Route MUST be considered detached from the Gateway.
+
+                        Support: Extended
+                      format: int32
+                      maximum: 65535
+                      minimum: 1
+                      type: integer
+                    sectionName:
+                      description: |-
+                        SectionName is the name of a section within the target resource. In the
+                        following resources, SectionName is interpreted as the following:
+
+                        * Gateway: Listener name. When both Port (experimental) and SectionName
+                        are specified, the name and port of the selected listener must match
+                        both specified values.
+                        * Service: Port name. When both Port (experimental) and SectionName
+                        are specified, the name and port of the selected listener must match
+                        both specified values.
+
+                        Implementations MAY choose to support attaching Routes to other resources.
+                        If that is the case, they MUST clearly document how SectionName is
+                        interpreted.
+
+                        When unspecified (empty string), this will reference the entire resource.
+                        For the purpose of status, an attachment is considered successful if at
+                        least one section in the parent resource accepts it. For example, Gateway
+                        listeners can restrict which Routes can attach to them by Route kind,
+                        namespace, or hostname. If 1 of 2 Gateway listeners accept attachment from
+                        the referencing Route, the Route MUST be considered successfully
+                        attached. If no Gateway listeners accept attachment from this Route, the
+                        Route MUST be considered detached from the Gateway.
+
+                        Support: Core
+                      maxLength: 253
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                      type: string
+                  required:
+                  - name
+                  type: object
+                maxItems: 32
+                minItems: 1
+                type: array
+                x-kubernetes-list-type: atomic
+            required:
+            - backendRefs
+            - parentRefs
+            type: object
+          status:
+            description: Status defines the observed state of the route.
+            properties:
+              parents:
+                description: |-
+                  Parents describes the status of the route with respect to each
+                  Gateway parent. rsync-gateway only writes entries whose
+                  controllerName is gateway.rsync.zjusct.io/rsync-gateway and
+                  preserves entries written by other controllers.
+                items:
+                  description: |-
+                    RouteParentStatus describes the status of a route with respect to an
+                    associated Parent.
+                  properties:
+                    conditions:
+                      description: |-
+                        Conditions describes the status of the route with respect to the Gateway.
+                        Note that the route's availability is also subject to the Gateway's own
+                        status conditions and listener status.
+
+                        If the Route's ParentRef specifies an existing Gateway that supports
+                        Routes of this kind AND that Gateway's controller has sufficient access,
+                        then that Gateway's controller MUST set the "Accepted" condition on the
+                        Route, to indicate whether the route has been accepted or rejected by the
+                        Gateway, and why.
+
+                        A Route MUST be considered "Accepted" if at least one of the Route's
+                        rules is implemented by the Gateway.
+
+                        There are a number of cases where the "Accepted" condition may not be set
+                        due to lack of controller visibility, that includes when:
+
+                        * The Route refers to a nonexistent parent.
+                        * The Route is of a type that the controller does not support.
+                        * The Route is in a namespace to which the controller does not have access.
+
+                        <gateway:util:excludeFromCRD>
+
+                        Notes for implementors:
+
+                        Conditions are a listType `map`, which means that they function like a
+                        map with a key of the `type` field _in the k8s apiserver_.
+
+                        This means that implementations must obey some rules when updating this
+                        section.
+
+                        * Implementations MUST perform a read-modify-write cycle on this field
+                          before modifying it. That is, when modifying this field, implementations
+                          must be confident they have fetched the most recent version of this field,
+                          and ensure that changes they make are on that recent version.
+                        * Implementations MUST NOT remove or reorder Conditions that they are not
+                          directly responsible for. For example, if an implementation sees a Condition
+                          with type `special.io/SomeField`, it MUST NOT remove, change or update that
+                          Condition.
+                        * Implementations MUST always _merge_ changes into Conditions of the same Type,
+                          rather than creating more than one Condition of the same Type.
+                        * Implementations MUST always update the `observedGeneration` field of the
+                          Condition to the `metadata.generation` of the Gateway at the time of update creation.
+                        * If the `observedGeneration` of a Condition is _greater than_ the value the
+                          implementation knows about, then it MUST NOT perform the update on that Condition,
+                          but must wait for a future reconciliation and status update. (The assumption is that
+                          the implementation's copy of the object is stale and an update will be re-triggered
+                          if relevant.)
+
+                        </gateway:util:excludeFromCRD>
+                      items:
+                        description: Condition contains details for one aspect of
+                          the current state of this API Resource.
+                        properties:
+                          lastTransitionTime:
+                            description: |-
+                              lastTransitionTime is the last time the condition transitioned from one status to another.
+                              This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                            format: date-time
+                            type: string
+                          message:
+                            description: |-
+                              message is a human readable message indicating details about the transition.
+                              This may be an empty string.
+                            maxLength: 32768
+                            type: string
+                          observedGeneration:
+                            description: |-
+                              observedGeneration represents the .metadata.generation that the condition was set based upon.
+                              For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                              with respect to the current state of the instance.
+                            format: int64
+                            minimum: 0
+                            type: integer
+                          reason:
+                            description: |-
+                              reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                              Producers of specific condition types may define expected values and meanings for this field,
+                              and whether the values are considered a guaranteed API.
+                              The value should be a CamelCase string.
+                              This field may not be empty.
+                            maxLength: 1024
+                            minLength: 1
+                            pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                            type: string
+                          status:
+                            description: status of the condition, one of True, False,
+                              Unknown.
+                            enum:
+                            - "True"
+                            - "False"
+                            - Unknown
+                            type: string
+                          type:
+                            description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                            maxLength: 316
+                            pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                            type: string
+                        required:
+                        - lastTransitionTime
+                        - message
+                        - reason
+                        - status
+                        - type
+                        type: object
+                      maxItems: 8
+                      minItems: 1
+                      type: array
+                      x-kubernetes-list-map-keys:
+                      - type
+                      x-kubernetes-list-type: map
+                    controllerName:
+                      description: |-
+                        ControllerName is a domain/path string that indicates the name of the
+                        controller that wrote this status. This corresponds with the
+                        controllerName field on GatewayClass.
+
+                        Example: "example.net/gateway-controller".
+
+                        The format of this field is DOMAIN "/" PATH, where DOMAIN and PATH are
+                        valid Kubernetes names
+                        (https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names).
+
+                        Controllers MUST populate this field when writing status. Controllers should ensure that
+                        entries to status populated with their ControllerName are cleaned up when they are no
+                        longer necessary.
+                      maxLength: 253
+                      minLength: 1
+                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*\/[A-Za-z0-9\/\-._~%!$&'()*+,;=:]+$
+                      type: string
+                    parentRef:
+                      description: |-
+                        ParentRef corresponds with a ParentRef in the spec that this
+                        RouteParentStatus struct describes the status of.
+                      properties:
+                        group:
+                          default: gateway.networking.k8s.io
+                          description: |-
+                            Group is the group of the referent.
+                            When unspecified, "gateway.networking.k8s.io" is inferred.
+                            To set the core API group (such as for a "Service" kind referent),
+                            Group must be explicitly set to "" (empty string).
+
+                            Support: Core
+                          maxLength: 253
+                          pattern: ^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                          type: string
+                        kind:
+                          default: Gateway
+                          description: |-
+                            Kind is kind of the referent.
+
+                            There are two kinds of parent resources with "Core" support:
+
+                            * Gateway (Gateway conformance profile)
+                            * Service (Mesh conformance profile, ClusterIP Services only)
+
+                            Support for other resources is Implementation-Specific.
+                          maxLength: 63
+                          minLength: 1
+                          pattern: ^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$
+                          type: string
+                        name:
+                          description: |-
+                            Name is the name of the referent.
+
+                            Support: Core
+                          maxLength: 253
+                          minLength: 1
+                          type: string
+                        namespace:
+                          description: |-
+                            Namespace is the namespace of the referent. When unspecified, this refers
+                            to the local namespace of the Route.
+
+                            Note that there are specific rules for ParentRefs which cross namespace
+                            boundaries. Cross-namespace references are only valid if they are explicitly
+                            allowed by something in the namespace they are referring to. For example:
+                            Gateway has the AllowedRoutes field, and ReferenceGrant provides a
+                            generic way to enable any other kind of cross-namespace reference.
+
+                            <gateway:experimental:description>
+                            ParentRefs from a Route to a Service in the same namespace are "producer"
+                            routes, which apply default routing rules to inbound connections from
+                            any namespace to the Service.
+
+                            ParentRefs from a Route to a Service in a different namespace are
+                            "consumer" routes, and these routing rules are only applied to outbound
+                            connections originating from the same namespace as the Route, for which
+                            the intended destination of the connections are a Service targeted as a
+                            ParentRef of the Route.
+                            </gateway:experimental:description>
+
+                            Support: Core
+                          maxLength: 63
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                          type: string
+                        port:
+                          description: |-
+                            Port is the network port this Route targets. It can be interpreted
+                            differently based on the type of parent resource.
+
+                            When the parent resource is a Gateway, this targets all listeners
+                            listening on the specified port that also support this kind of Route(and
+                            select this Route). It's not recommended to set `Port` unless the
+                            networking behaviors specified in a Route must apply to a specific port
+                            as opposed to a listener(s) whose port(s) may be changed. When both Port
+                            and SectionName are specified, the name and port of the selected listener
+                            must match both specified values.
+
+                            <gateway:experimental:description>
+                            When the parent resource is a Service, this targets a specific port in the
+                            Service spec. When both Port (experimental) and SectionName are specified,
+                            the name and port of the selected port must match both specified values.
+                            </gateway:experimental:description>
+
+                            Implementations MAY choose to support other parent resources.
+                            Implementations supporting other types of parent resources MUST clearly
+                            document how/if Port is interpreted.
+
+                            For the purpose of status, an attachment is considered successful as
+                            long as the parent resource accepts it partially. For example, Gateway
+                            listeners can restrict which Routes can attach to them by Route kind,
+                            namespace, or hostname. If 1 of 2 Gateway listeners accept attachment
+                            from the referencing Route, the Route MUST be considered successfully
+                            attached. If no Gateway listeners accept attachment from this Route,
+                            the Route MUST be considered detached from the Gateway.
+
+                            Support: Extended
+                          format: int32
+                          maximum: 65535
+                          minimum: 1
+                          type: integer
+                        sectionName:
+                          description: |-
+                            SectionName is the name of a section within the target resource. In the
+                            following resources, SectionName is interpreted as the following:
+
+                            * Gateway: Listener name. When both Port (experimental) and SectionName
+                            are specified, the name and port of the selected listener must match
+                            both specified values.
+                            * Service: Port name. When both Port (experimental) and SectionName
+                            are specified, the name and port of the selected listener must match
+                            both specified values.
+
+                            Implementations MAY choose to support attaching Routes to other resources.
+                            If that is the case, they MUST clearly document how SectionName is
+                            interpreted.
+
+                            When unspecified (empty string), this will reference the entire resource.
+                            For the purpose of status, an attachment is considered successful if at
+                            least one section in the parent resource accepts it. For example, Gateway
+                            listeners can restrict which Routes can attach to them by Route kind,
+                            namespace, or hostname. If 1 of 2 Gateway listeners accept attachment from
+                            the referencing Route, the Route MUST be considered successfully
+                            attached. If no Gateway listeners accept attachment from this Route, the
+                            Route MUST be considered detached from the Gateway.
+
+                            Support: Core
+                          maxLength: 253
+                          minLength: 1
+                          pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                          type: string
+                      required:
+                      - name
+                      type: object
+                  required:
+                  - conditions
+                  - controllerName
+                  - parentRef
+                  type: object
+                maxItems: 32
+                type: array
+                x-kubernetes-list-type: atomic
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

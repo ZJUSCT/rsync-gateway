@@ -1,0 +1,91 @@
+{{- /* Manager Deployment: the controller-runtime manager and the embedded
+rsync-proxy data plane in one process. Every replica is self-converging (no
+leader election in v0): it watches the same resources, computes the same
+desired state and applies it to its own embedded data plane. */ -}}
+{{- if not .Values.rsync.bindAddrs -}}
+{{- fail "rsync.bindAddrs must not be empty: the data plane binds its rsync listeners once at startup" -}}
+{{- end -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "rsync-gateway.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rsync-gateway.labels" . | nindent 4 }}
+    app.kubernetes.io/component: manager
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "rsync-gateway.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: manager
+  template:
+    metadata:
+      labels:
+        {{- include "rsync-gateway.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: manager
+    spec:
+      serviceAccountName: {{ include "rsync-gateway.serviceAccountName" . }}
+      # Larger than --grace-period so in-flight rsync transfers get the full
+      # drain window before the container is killed.
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: manager
+          image: {{ include "rsync-gateway.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            {{- range .Values.rsync.bindAddrs }}
+            - --bind={{ . }}
+            {{- end }}
+            - --admin={{ .Values.admin.addr }}
+            - --grace-period={{ .Values.gracePeriod }}
+            - --metrics-bind-address={{ .Values.metricsBindAddress }}
+            - --health-probe-bind-address={{ .Values.healthProbeBindAddress }}
+          ports:
+            {{- /* Container ports are derived from the flag addresses so
+            they can never drift from the actual listeners; the first rsync
+            listener is named "rsync" (the Service's targetPort). */ -}}
+            {{- range $i, $addr := .Values.rsync.bindAddrs }}
+            - name: {{ if eq $i 0 }}rsync{{ else }}rsync-{{ $i }}{{ end }}
+              containerPort: {{ include "rsync-gateway.portFromAddr" $addr }}
+              protocol: TCP
+            {{- end }}
+            - name: admin
+              containerPort: {{ include "rsync-gateway.portFromAddr" .Values.admin.addr }}
+              protocol: TCP
+            - name: metrics
+              containerPort: {{ include "rsync-gateway.portFromAddr" .Values.metricsBindAddress }}
+              protocol: TCP
+            - name: healthz
+              containerPort: {{ include "rsync-gateway.portFromAddr" .Values.healthProbeBindAddress }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: healthz
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}

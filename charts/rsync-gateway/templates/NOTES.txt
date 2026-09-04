@@ -1,0 +1,7 @@
+rsync-gateway {{ .Chart.Version }} (app {{ .Chart.AppVersion }}) has been deployed to namespace "{{ .Release.Namespace }}".
+
+  rsync: Service "{{ include "rsync-gateway.fullname" . }}" ({{ .Values.rsync.service.type }}, port {{ .Values.rsync.service.port }}) fronts the {{ len .Values.rsync.bindAddrs }} listener(s) on {{ join ", " .Values.rsync.bindAddrs }}.
+{{- if .Values.admin.service.enabled }}
+  admin/metrics: Service "{{ include "rsync-gateway.fullname" . }}-admin" ({{ .Values.admin.service.type }}).
+{{- end }}
+  Next steps: create a GatewayClass + GatewayConfig, a Gateway (listener protocol rsync.zjusct.io/rsync) and an RsyncRoute — see https://github.com/ZJUSCT/rsync-gateway/blob/master/README.gateway.md

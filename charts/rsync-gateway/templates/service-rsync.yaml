@@ -1,0 +1,25 @@
+{{- /* Service fronting the rsync data-plane listeners. Targets the first
+rsync listener (see the Deployment ports); the other bind addresses remain
+in-pod listeners (e.g. for NodePort/HostNetwork setups). */ -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rsync-gateway.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rsync-gateway.labels" . | nindent 4 }}
+    app.kubernetes.io/component: rsync
+  {{- with .Values.rsync.service.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: {{ .Values.rsync.service.type }}
+  selector:
+    {{- include "rsync-gateway.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: manager
+  ports:
+    - name: rsync
+      port: {{ .Values.rsync.service.port }}
+      targetPort: rsync
+      protocol: TCP

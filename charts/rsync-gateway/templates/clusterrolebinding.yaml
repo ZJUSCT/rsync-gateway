@@ -1,0 +1,17 @@
+{{- /* Binds the manager ClusterRole (see clusterrole.yaml, same naming
+helper) to the manager ServiceAccount. */ -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "rsync-gateway.clusterRoleName" . }}
+  labels:
+    {{- include "rsync-gateway.labels" . | nindent 4 }}
+    app.kubernetes.io/component: manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "rsync-gateway.clusterRoleName" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "rsync-gateway.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}

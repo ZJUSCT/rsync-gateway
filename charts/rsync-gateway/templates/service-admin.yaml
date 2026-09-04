@@ -1,0 +1,27 @@
+{{- /* ClusterIP Service exposing the data-plane admin listener (--admin:
+/status, /metrics, /upstream-modules, /telegraf) and the controller-runtime
+metrics endpoint, for scraping or port-forwarding. */ -}}
+{{- if .Values.admin.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rsync-gateway.fullname" . }}-admin
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "rsync-gateway.labels" . | nindent 4 }}
+    app.kubernetes.io/component: admin
+spec:
+  type: {{ .Values.admin.service.type }}
+  selector:
+    {{- include "rsync-gateway.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: manager
+  ports:
+    - name: admin
+      port: {{ .Values.admin.service.ports.admin }}
+      targetPort: admin
+      protocol: TCP
+    - name: metrics
+      port: {{ .Values.admin.service.ports.metrics }}
+      targetPort: metrics
+      protocol: TCP
+{{- end }}

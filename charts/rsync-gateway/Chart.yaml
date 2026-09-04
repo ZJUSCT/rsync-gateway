@@ -1,0 +1,24 @@
+apiVersion: v2
+name: rsync-gateway
+description: |-
+  rsync-gateway — a Kubernetes-native rsync reverse proxy. Deploys the
+  controller-runtime manager with the embedded rsync-proxy data plane: it
+  watches Gateway API objects (GatewayClass, Gateway, RsyncRoute), publishes
+  rsync modules and relays module traffic to backend Services.
+type: application
+version: 0.0.0
+appVersion: "v0.0.0"
+home: https://github.com/ZJUSCT/rsync-gateway
+sources:
+  - https://github.com/ZJUSCT/rsync-gateway
+keywords:
+  - rsync
+  - mirror
+  - gateway-api
+maintainers:
+  - name: ZJUSCT
+    url: https://github.com/ZJUSCT
+annotations:
+  # OCI release target (published by .github/workflows/release-chart.yml):
+  #   oci://ghcr.io/<owner>/charts/rsync-gateway
+  org.opencontainers.image.source: https://github.com/ZJUSCT/rsync-gateway

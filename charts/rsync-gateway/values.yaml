@@ -1,0 +1,99 @@
+# Default values for the rsync-gateway Helm chart.
+# The chart deploys the rsync-gateway manager (controller-runtime + embedded
+# rsync-proxy data plane in one process), its Services and its RBAC; the
+# GatewayConfig and RsyncRoute CRDs ship in crds/ and are not templates.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Every replica is self-converging (no leader election in v0): all replicas
+# watch the same resources, compute the same desired state and apply it to
+# their own embedded data plane.
+replicaCount: 2
+
+image:
+  repository: ghcr.io/zjusct/rsync-gateway
+  tag: ""            # empty = Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+# rsync data plane. Listeners are static: the binary binds them once at
+# startup (one --bind flag per entry), so a Gateway listener must use one of
+# these ports — listeners on other ports are reported
+# Programmed=False/RestartRequired instead of being bound dynamically.
+rsync:
+  bindAddrs:
+    - ":873"
+  service:
+    # Service fronting the rsync listeners. LoadBalancer is the usual choice
+    # for direct rsync client access; the Service targets the FIRST listener
+    # in bindAddrs.
+    type: LoadBalancer
+    port: 873
+    annotations: {}
+
+# Admin HTTP listener of the embedded data plane (--admin): serves /status,
+# /metrics, /upstream-modules and /telegraf.
+admin:
+  addr: ":9080"
+  service:
+    # ClusterIP Service exposing the admin and controller-metrics endpoints
+    # (for scraping or port-forwarding). The controller-runtime metrics
+    # listener is expected on the "metrics" port below.
+    enabled: true
+    type: ClusterIP
+    ports:
+      admin: 9080
+      metrics: 8080
+
+# controller-runtime Prometheus metrics endpoint (--metrics-bind-address);
+# exposed on the admin Service's "metrics" port. Must carry a port number:
+# the chart derives container ports from the addresses and cannot render
+# the disabled ("0") form.
+metricsBindAddress: ":8080"
+
+# Health probe endpoint (--health-probe-bind-address); the liveness
+# (/healthz) and readiness (/readyz) probes target it. Must carry a port
+# number (see metricsBindAddress above).
+healthProbeBindAddress: ":8081"
+
+# Connection drain window on shutdown (--grace-period): active relay
+# connections are drained for this long after the manager stops.
+gracePeriod: 30s
+# Pod terminationGracePeriodSeconds; larger than gracePeriod so the process
+# gets the full drain window before SIGKILL.
+terminationGracePeriodSeconds: 60
+
+resources: {}
+
+podSecurityContext:
+  # Numeric UID/GID matching the distroless "nonroot" user (65532): kubelet
+  # can only verify runAsNonRoot against a numeric image user, so both the
+  # images and this default use numbers.
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+rbac:
+  serviceAccount:
+    # Create the ServiceAccount used by the manager.
+    create: true
+    # Defaults to the release fullname when empty.
+    name: ""
+  clusterRole:
+    # Name of the manager ClusterRole; defaults to <fullname>-manager. The
+    # rules are hand-maintained in templates/clusterrole.yaml and must be
+    # kept in sync with the //+kubebuilder:rbac markers in the Go code.
+    name: ""

@@ -1,0 +1,69 @@
+{{- /*
+Cluster-scoped RBAC for the manager.
+
+HAND-MAINTAINED: controller-gen no longer generates this file (the Makefile
+`gateway-manifests` target renders CRDs only). The rules below MUST be kept
+in sync with the //+kubebuilder:rbac markers in the Go code (see
+internal/controller/reconciler.go and the marker aggregation in
+cmd/rsync-gateway).
+*/ -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "rsync-gateway.clusterRoleName" . }}
+  labels:
+    {{- include "rsync-gateway.labels" . | nindent 4 }}
+    app.kubernetes.io/component: manager
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - events
+    verbs:
+      - create
+      - patch
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - gatewayclasses
+      - gateways
+      - referencegrants
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - gateway.networking.k8s.io
+    resources:
+      - gatewayclasses/status
+      - gateways/status
+    verbs:
+      - get
+      - patch
+      - update
+  - apiGroups:
+      - gateway.rsync.zjusct.io
+    resources:
+      - gatewayconfigs
+      - rsyncroutes
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - gateway.rsync.zjusct.io
+    resources:
+      - gatewayconfigs/status
+      - rsyncroutes/status
+    verbs:
+      - get
+      - patch
+      - update
