@@ -1,0 +1,28 @@
+# Dockerfile.gateway builds the rsync-gateway binary (controller + embedded
+# rsync-proxy data plane) into a distroless static image. The standalone
+# rsync-proxy image is built separately by Dockerfile.rsync-proxy.
+FROM golang:1.27-alpine AS build
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 go build -trimpath \
+    -o /out/rsync-gateway \
+    ./cmd/rsync-gateway
+
+FROM gcr.io/distroless/static-debian12
+
+COPY --from=build /out/rsync-gateway /usr/bin/rsync-gateway
+
+# Distroless has no shell; the binary listens on 9080 admin, 8080 metrics
+# and 8081 health probes (unprivileged) plus the rsync port (873 by
+# default), which is privileged on Linux — in Kubernetes pods it binds
+# because container runtimes lower net.ipv4.ip_unprivileged_port_start in
+# the pod network namespace. The numeric UID (distroless "nonroot") lets
+# kubelet verify pod securityContext runAsNonRoot against the image
+# config, which it cannot do for a named user.
+USER 65532:65532
+
+ENTRYPOINT ["/usr/bin/rsync-gateway"]

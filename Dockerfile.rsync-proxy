@@ -1,0 +1,25 @@
+# Dockerfile.rsync-proxy builds the standalone rsync-proxy binary (the
+# upstream rsync daemon reverse proxy) into a distroless static image.
+# rsync-gateway itself is built by Dockerfile.gateway. The name intentionally differs from a root "Dockerfile"
+# so that rebases onto upstream rsync-proxy tags cannot collide with a file
+# upstream might add.
+FROM golang:1.27-alpine AS build
+WORKDIR /src
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY . .
+RUN CGO_ENABLED=0 go build -trimpath \
+    -o /out/rsync-proxy \
+    .
+
+FROM gcr.io/distroless/static-debian12
+
+COPY --from=build /out/rsync-proxy /usr/bin/rsync-proxy
+
+# Numeric UID so that a pod securityContext runAsNonRoot can actually be
+# verified against the image config (kubelet cannot check a named user).
+USER 65532:65532
+
+ENTRYPOINT ["/usr/bin/rsync-proxy"]
