@@ -2,6 +2,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
@@ -1891,4 +1892,92 @@ func TestApplyConfigAppliesProgrammaticConfig(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 
 	release.Done()
+}
+
+// TestDrainOnIdleServer verifies that Drain returns 0 immediately on a
+// server without active connections and that the listeners are closed,
+// so subsequent connection attempts are refused.
+func TestDrainOnIdleServer(t *testing.T) {
+	srv := startServer(t)
+	defer srv.Close()
+	listenerAddr := srv.TCPListener.Addr().String()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.Equal(t, 0, srv.Drain(ctx))
+
+	_, err := net.DialTimeout("tcp", listenerAddr, 100*time.Millisecond)
+	require.Error(t, err, "listener must be closed after Drain")
+}
+
+// TestDrainWaitsForActiveConnections verifies that Drain closes the
+// listeners even while a relay connection is still active, returns the
+// still-active count when its context expires, and returns 0 once the
+// remaining connection finishes.
+func TestDrainWaitsForActiveConnections(t *testing.T) {
+	r := require.New(t)
+
+	srv := startServer(t)
+	defer srv.Close()
+	listenerAddr := srv.TCPListener.Addr().String()
+
+	release := make(chan struct{})
+	fakeRsync := rsync.NewServer(func(conn *rsync.Conn) {
+		defer conn.Close()
+		_, _, err := doServerHandshake(conn, RsyncdServerVersion)
+		r.NoError(err, "upstream handshake")
+		<-release
+	})
+	fakeRsync.Start()
+	defer fakeRsync.Close()
+
+	srv.modules = map[string][]Target{
+		"fake": {{Upstream: "u1", Addr: fakeRsync.Listener.Addr().String()}},
+	}
+	srv.upstreamQueues = map[string]*queue.Queue{"u1": queue.New(0, 0)}
+
+	rawConn, err := net.Dial("tcp", listenerAddr)
+	r.NoError(err)
+	conn := rsync.NewConn(rawConn)
+	defer conn.Close()
+	_, err = doClientHandshake(conn, RsyncdServerVersion, "fake")
+	r.NoError(err)
+
+	// Wait until the relay connection is fully established.
+	r.Eventually(func() bool {
+		return srv.GetActiveConnectionCount() == 1
+	}, time.Second, 10*time.Millisecond)
+
+	// Drain with a short context: it must close the listeners right
+	// away, then give up while the relay connection is still active.
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	remaining := make(chan int, 1)
+	go func() {
+		remaining <- srv.Drain(ctx)
+	}()
+
+	r.Eventually(func() bool {
+		c, err := net.DialTimeout("tcp", listenerAddr, 100*time.Millisecond)
+		if err != nil {
+			return true
+		}
+		_ = c.Close()
+		return false
+	}, time.Second, 20*time.Millisecond,
+		"listener must be closed by Drain while the relay is still active")
+
+	select {
+	case n := <-remaining:
+		r.Equal(1, n, "the relay connection was still active when the context expired")
+	case <-time.After(2 * time.Second):
+		t.Fatal("Drain did not return after the context expired")
+	}
+
+	// Once the client goes away, a second Drain returns 0.
+	r.NoError(conn.Close())
+	close(release)
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel2()
+	r.Equal(0, srv.Drain(ctx2))
 }

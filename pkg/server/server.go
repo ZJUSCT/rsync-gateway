@@ -1345,6 +1345,9 @@ func (s *Server) Listen() error {
 	return nil
 }
 
+// Close closes all listeners. It is idempotent: closing an
+// already-closed (or never-created) listener is a no-op, so calling it
+// multiple times is safe, e.g. from Drain followed by a deferred Close.
 func (s *Server) Close() {
 	if s.TCPListener != nil {
 		_ = s.TCPListener.Close()
@@ -1354,6 +1357,25 @@ func (s *Server) Close() {
 	}
 	if s.HTTPListener != nil {
 		_ = s.HTTPListener.Close()
+	}
+}
+
+// Drain closes all listeners (see Close) and waits until every active
+// relay connection has finished or ctx is done. It returns the number of
+// connections still active when it returned.
+func (s *Server) Drain(ctx context.Context) int {
+	s.Close()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if s.GetActiveConnectionCount() == 0 {
+			return 0
+		}
+		select {
+		case <-ctx.Done():
+			return int(s.GetActiveConnectionCount())
+		case <-ticker.C:
+		}
 	}
 }
 
