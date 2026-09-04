@@ -1819,3 +1819,76 @@ modules = ["m1"]
 		assert.Equal(t, 60*time.Second, srv.MinThroughputGrace)
 	})
 }
+
+// TestApplyConfigAppliesProgrammaticConfig verifies the library-facing
+// ApplyConfig entry point: a Config built programmatically (no TOML
+// file involved) is applied to a fresh server, re-applying succeeds,
+// and the resulting module table serves real client connections.
+func TestApplyConfigAppliesProgrammaticConfig(t *testing.T) {
+	r := require.New(t)
+
+	var release sync.WaitGroup
+	release.Add(1)
+	fakeRsync := rsync.NewServer(func(conn *rsync.Conn) {
+		defer conn.Close()
+		_, _, err := doServerHandshake(conn, RsyncdServerVersion)
+		r.NoError(err, "upstream handshake")
+		release.Wait()
+	})
+	fakeRsync.Start()
+	defer fakeRsync.Close()
+
+	srv := New()
+	srv.HTTPListenAddr = "127.0.0.1:0"
+	srv.ListenAddr = "127.0.0.1:0"
+	srv.ReadTimeout = time.Second
+	srv.WriteTimeout = time.Second
+
+	buildConfig := func() *Config {
+		return &Config{
+			Proxy: ProxySettings{
+				Listen:     "127.0.0.1:0",
+				ListenHTTP: "127.0.0.1:0",
+			},
+			Upstreams: map[string]*Upstream{
+				"u1": {
+					Address: fakeRsync.Listener.Addr().String(),
+					Modules: []string{"fake"},
+				},
+			},
+		}
+	}
+
+	// Applying twice in a row must succeed, i.e. re-apply works.
+	r.NoError(srv.ApplyConfig(buildConfig(), true))
+	r.NoError(srv.ApplyConfig(buildConfig(), true))
+
+	targets, ok := srv.getTargetsForModule("fake")
+	r.True(ok, "module from programmatic config should resolve")
+	r.Len(targets, 1)
+	r.Equal("u1", targets[0].Upstream)
+	r.Equal(fakeRsync.Listener.Addr().String(), targets[0].Addr)
+
+	// The server can be started and serve traffic right after a
+	// programmatic apply, without ever reading a config file.
+	r.NoError(srv.Listen())
+	defer srv.Close()
+	go func() {
+		err := srv.Run()
+		assert.NoErrorf(t, err, "Fail to run server")
+	}()
+
+	rawConn, err := net.Dial("tcp", srv.TCPListener.Addr().String())
+	r.NoError(err)
+	conn := rsync.NewConn(rawConn)
+	defer conn.Close()
+	_, err = doClientHandshake(conn, RsyncdServerVersion, "fake")
+	r.NoError(err)
+
+	r.Eventually(func() bool {
+		infos := srv.ListConnectionInfo()
+		return len(infos) == 1 && infos[0].snapshot().Upstream == "u1"
+	}, time.Second, 10*time.Millisecond)
+
+	release.Done()
+}

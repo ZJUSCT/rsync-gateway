@@ -432,6 +432,20 @@ func (s *Server) loadConfig(c *Config, openLog bool) error {
 	return nil
 }
 
+// ApplyConfig validates and applies c to the running (or not yet started)
+// server, atomically swapping the module table, upstreams, queues and
+// settings under the reload lock. It is the library-facing equivalent of
+// ReadConfigFromFile: openLog controls the same behaviors as there,
+// i.e. when true it (re)opens the configured log files and performs module
+// discovery for upstreams with DiscoverModules set.
+//
+// It is intended for embedders that build a Config programmatically instead
+// of parsing a TOML file. The HTTP /reload endpoint and the reload CLI keep
+// reading the config file and are unaffected.
+func (s *Server) ApplyConfig(c *Config, openLog bool) error {
+	return s.loadConfig(c, openLog)
+}
+
 func resolveUpstreams(upstreams []upstreamConfig, discovered map[string][]string) []upstreamConfig {
 	resolved := make([]upstreamConfig, 0, len(upstreams))
 	for _, upstream := range upstreams {
