@@ -92,7 +92,3 @@ type RsyncRouteList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []RsyncRoute `json:"items"`
 }
-
-func init() {
-	SchemeBuilder.Register(&RsyncRoute{}, &RsyncRouteList{})
-}
