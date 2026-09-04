@@ -1,3 +1,37 @@
+# rsync-gateway
+
+本项目是 [ustclug/rsync-proxy](https://github.com/ustclug/rsync-proxy) 的 fork，将其包装为符合 Kubernetes [Gateway API](https://gateway-api.sigs.k8s.io/) 扩展模型的 **rsync-gateway**，成为 Kubernetes 原生的 rsync 反向代理网关。具体来说，本项目新增了：
+
+- 两个 CRD：`RsyncRoute` / `GatewayConfig`
+
+    ```yaml
+    apiVersion: gateway.rsync.zjusct.io/v1alpha1
+    kind: RsyncRoute
+    metadata:
+      name: mirror
+      namespace: rsync-gateway-samples
+    spec:
+      parentRefs:
+      - name: rsync
+      moduleNames: [ubuntu, ubuntu-cd]
+      backendRefs:
+      - name: mirror-rsyncd
+        port: 873
+    ```
+
+- Gateway listener 自定义协议：`rsync.zjusct.io/rsync`
+- `rsync-gateway`：controller-runtime 控制器，内嵌 rsync-proxy，watch 上述资源后对路由表做热更新；
+- 发布地址（自首个 tag 起由 CI 自动发布）：
+    - `ghcr.io/zjusct/rsync-gateway`：控制器镜像
+    - `ghcr.io/zjusct/rsync-proxy`：rsync-proxy 镜像（上游 rsync 反向代理的容器化打包）
+    - `ghcr.io/zjusct/charts/rsync-gateway`：Helm Chart
+
+本项目的维护和版本策略：直接使用上游版本号（tag）。当上游发布新版本（tag）时，rebase 到该 tag。
+
+网关文档、架构和快速入门请参见 [README.gateway.md](README.gateway.md)。下文保留上游 rsync-proxy 的 README（含少量针对本 fork 的行为增补）以便 rebase。
+
+---
+
 # rsync-proxy ![](https://github.com/ustclug/rsync-proxy/workflows/Go/badge.svg)
 
 rsync-proxy 可以根据 module name 反向代理不同 host 上的 rsync daemon 以减轻单台主机上的 IO 压力。
