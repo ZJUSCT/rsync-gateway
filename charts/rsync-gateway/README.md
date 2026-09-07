@@ -1,9 +1,11 @@
 # rsync-gateway Helm chart
 
 Deploys the rsync-gateway manager — a controller-runtime controller with the
-embedded rsync-proxy data plane in one process — as a Deployment (default
-2 replicas, no leader election), a LoadBalancer Service fronting the rsync
-listeners, a ClusterIP Service exposing the admin/metrics endpoints, and the
+embedded rsync-proxy data plane in one process — as a Deployment (default,
+2 replicas, no leader election) or a DaemonSet (`workloadKind: DaemonSet`,
+one manager per selected node, for topologies that need a local instance
+everywhere), plus a LoadBalancer Service fronting the rsync listeners, a
+ClusterIP Service exposing the admin/metrics endpoints, and the
 ServiceAccount/ClusterRole/ClusterRoleBinding the manager needs. The
 GatewayConfig and RsyncRoute CRDs ship in `crds/`.
 
@@ -35,7 +37,10 @@ managed by this chart; see the walkthrough in the project
 
 | Key | Default | Description |
 |---|---|---|
-| `replicaCount` | `2` | Deployment replicas (every replica is self-converging) |
+| `workloadKind` | `Deployment` | Manager workload kind: `Deployment` or `DaemonSet` (one pod per selected node; needs a local instance on every node) |
+| `replicaCount` | `2` | Deployment replicas (every replica is self-converging; ignored for `DaemonSet`) |
+| `daemonset.updateStrategy.type` | `RollingUpdate` | DaemonSet update strategy (ignored for `Deployment`) |
+| `daemonset.updateStrategy.maxUnavailable` | `1` | DaemonSet RollingUpdate maxUnavailable, count or percentage string (ignored for `Deployment`) |
 | `image.repository` | `ghcr.io/zjusct/rsync-gateway` | Image repository |
 | `image.tag` | `""` | Image tag; empty = `.Chart.AppVersion` |
 | `image.pullPolicy` | `IfNotPresent` | Image pull policy |
@@ -55,7 +60,8 @@ managed by this chart; see the walkthrough in the project
 | `resources` | `{}` | Container resources |
 | `podSecurityContext` | nonroot + `RuntimeDefault` seccomp | Pod security context |
 | `securityContext` | no privilege escalation, drop `ALL`, read-only root fs | Container security context |
-| `nodeSelector` / `tolerations` / `affinity` | `{}` / `[]` / `{}` | Pod scheduling |
+| `nodeSelector` / `tolerations` | `{}` / `[]` | Pod scheduling (both workload kinds) |
+| `affinity` | `{}` | Pod scheduling; Deployment-only — not rendered for `DaemonSet` (one pod per node is already guaranteed) |
 | `rbac.serviceAccount.create` | `true` | Create the ServiceAccount |
 | `rbac.serviceAccount.name` | `""` | Defaults to the release fullname |
 | `rbac.clusterRole.name` | `""` | Defaults to `<fullname>-manager` |

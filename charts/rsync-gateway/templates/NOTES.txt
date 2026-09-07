@@ -1,4 +1,9 @@
-rsync-gateway {{ .Chart.Version }} (app {{ .Chart.AppVersion }}) has been deployed to namespace "{{ .Release.Namespace }}".
+rsync-gateway {{ .Chart.Version }} (app {{ .Chart.AppVersion }}) has been deployed to namespace "{{ .Release.Namespace }}" as a {{ .Values.workloadKind }}.
+{{- if eq .Values.workloadKind "DaemonSet" }}
+  workload: DaemonSet — one manager pod per (selected) node; pod count is owned by the DaemonSet controller (replicaCount is ignored).
+{{- else }}
+  workload: Deployment — {{ .Values.replicaCount }} replica(s), every replica self-converging.
+{{- end }}
 
   rsync: Service "{{ include "rsync-gateway.fullname" . }}" ({{ .Values.rsync.service.type }}, port {{ .Values.rsync.service.port }}) fronts the {{ len .Values.rsync.bindAddrs }} listener(s) on {{ join ", " .Values.rsync.bindAddrs }}.
 {{- if .Values.admin.service.enabled }}

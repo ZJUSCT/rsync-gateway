@@ -6,10 +6,34 @@
 nameOverride: ""
 fullnameOverride: ""
 
+# Workload kind rendering the manager: Deployment (default) or DaemonSet.
+#
+# Deployment — the usual choice: replicaCount scheduler-placed instances
+# behind the rsync/admin Services (optionally pinned with nodeSelector /
+# affinity).
+#
+# DaemonSet — exactly one manager per (selected) node, for topologies that
+# need a local instance everywhere (e.g. a NodePort/HostNetwork data plane
+# terminating on every node). replicaCount is meaningless (the DaemonSet
+# controller owns pod count: one per node); rollout is governed by
+# daemonset.updateStrategy below; affinity is not rendered (at most one
+# pod per node is already guaranteed, so anti-affinity is redundant).
+# nodeSelector and tolerations apply to both kinds and are the way to
+# restrict which nodes get an instance.
+workloadKind: Deployment
+
+# Deployment-only (ignored when workloadKind: DaemonSet).
 # Every replica is self-converging (no leader election in v0): all replicas
 # watch the same resources, compute the same desired state and apply it to
 # their own embedded data plane.
 replicaCount: 2
+
+# DaemonSet-only (ignored when workloadKind: Deployment): rollout policy of
+# the DaemonSet. maxUnavailable may be a count or a percentage string.
+daemonset:
+  updateStrategy:
+    type: RollingUpdate
+    maxUnavailable: 1
 
 image:
   repository: ghcr.io/zjusct/rsync-gateway
@@ -84,6 +108,8 @@ securityContext:
 
 nodeSelector: {}
 tolerations: []
+# Deployment-only (not rendered when workloadKind: DaemonSet — one pod per
+# node is already guaranteed, so (anti-)affinity is redundant there).
 affinity: {}
 
 rbac:

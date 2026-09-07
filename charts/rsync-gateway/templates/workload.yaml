@@ -1,12 +1,17 @@
-{{- /* Manager Deployment: the controller-runtime manager and the embedded
-rsync-proxy data plane in one process. Every replica is self-converging (no
-leader election in v0): it watches the same resources, computes the same
-desired state and applies it to its own embedded data plane. */ -}}
+{{- /* Manager workload: the controller-runtime manager and the embedded
+rsync-proxy data plane in one process, rendered as a Deployment (default)
+or a DaemonSet (workloadKind). Every replica is self-converging (no leader
+election in v0): it watches the same resources, computes the same desired
+state and applies it to its own embedded data plane — which is why the two
+kinds can share the identical pod template. */ -}}
+{{- if not (has .Values.workloadKind (list "Deployment" "DaemonSet")) -}}
+{{- fail (printf "workloadKind must be \"Deployment\" or \"DaemonSet\", got %q" .Values.workloadKind) -}}
+{{- end -}}
 {{- if not .Values.rsync.bindAddrs -}}
 {{- fail "rsync.bindAddrs must not be empty: the data plane binds its rsync listeners once at startup" -}}
 {{- end -}}
 apiVersion: apps/v1
-kind: Deployment
+kind: {{ .Values.workloadKind }}
 metadata:
   name: {{ include "rsync-gateway.fullname" . }}
   namespace: {{ .Release.Namespace }}
@@ -14,7 +19,18 @@ metadata:
     {{- include "rsync-gateway.labels" . | nindent 4 }}
     app.kubernetes.io/component: manager
 spec:
+  {{- if eq .Values.workloadKind "Deployment" }}
   replicas: {{ .Values.replicaCount }}
+  {{- else }}
+  {{- /* DaemonSet: pod count is "one per selected node"; rollout is
+  governed by updateStrategy (not .spec.strategy as in a Deployment). */}}
+  updateStrategy:
+    type: {{ .Values.daemonset.updateStrategy.type }}
+    {{- if eq .Values.daemonset.updateStrategy.type "RollingUpdate" }}
+    rollingUpdate:
+      maxUnavailable: {{ .Values.daemonset.updateStrategy.maxUnavailable | toYaml }}
+    {{- end }}
+  {{- end }}
   selector:
     matchLabels:
       {{- include "rsync-gateway.selectorLabels" . | nindent 6 }}
@@ -35,9 +51,13 @@ spec:
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if eq .Values.workloadKind "Deployment" }}
+      {{- /* Affinity is Deployment-only: a DaemonSet already places at most
+      one pod per node, so (anti-)affinity would be redundant. */}}
       {{- with .Values.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
